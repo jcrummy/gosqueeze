@@ -25,55 +25,6 @@ type packet struct {
 	Data         []byte
 }
 
-func (p packet) assemble() []byte {
-	var buf []byte
-	portSlice := make([]byte, 2)
-
-	// Destination
-	buf = append(buf, func() byte {
-		if p.DstBroadcast {
-			return 0x01
-		}
-		return 0x00
-	}())
-	buf = append(buf, byte(p.DstAddrType))
-	switch p.DstAddrType {
-	case addrTypeEth:
-		buf = append(buf, p.DstMac...)
-	case addrTypeUDP:
-		buf = append(buf, p.DstIP...)
-		binary.BigEndian.PutUint16(portSlice, uint16(p.DstPort))
-		buf = append(buf, portSlice...)
-	}
-
-	// Source
-	buf = append(buf, func() byte {
-		if p.SrcBroadcast {
-			return 0x01
-		}
-		return 0x00
-	}())
-	buf = append(buf, byte(p.SrcAddrType))
-	switch p.SrcAddrType {
-	case addrTypeEth:
-		buf = append(buf, p.SrcMac...)
-	case addrTypeUDP:
-		buf = append(buf, p.SrcIP...)
-		binary.BigEndian.PutUint16(portSlice, uint16(p.SrcPort))
-		buf = append(buf, portSlice...)
-	}
-
-	buf = append(buf, []byte{0x00, 0x01}...)
-	buf = append(buf, udapTypeUCP...)
-	buf = append(buf, []byte{0x01}...)
-	buf = append(buf, uapClassUCP...)
-	buf = append(buf, 0x00, byte(p.UcpMethod))
-
-	return buf
-}
-
-type inboundData map[byte][]byte
-
 func parsePacket(buf []byte) (*packet, error) {
 	if len(buf) < 27 {
 		return nil, errors.New("Packet length too short")
@@ -143,14 +94,83 @@ func parsePacket(buf []byte) (*packet, error) {
 	return &p, nil
 }
 
-func parseInboundData(buf []byte) (inboundData, error) {
+func (p packet) assemble() []byte {
+	var buf []byte
+	portSlice := make([]byte, 2)
+
+	// Destination
+	buf = append(buf, func() byte {
+		if p.DstBroadcast {
+			return 0x01
+		}
+		return 0x00
+	}())
+	buf = append(buf, byte(p.DstAddrType))
+	switch p.DstAddrType {
+	case addrTypeEth:
+		buf = append(buf, p.DstMac...)
+	case addrTypeUDP:
+		buf = append(buf, p.DstIP...)
+		binary.BigEndian.PutUint16(portSlice, uint16(p.DstPort))
+		buf = append(buf, portSlice...)
+	}
+
+	// Source
+	buf = append(buf, func() byte {
+		if p.SrcBroadcast {
+			return 0x01
+		}
+		return 0x00
+	}())
+	buf = append(buf, byte(p.SrcAddrType))
+	switch p.SrcAddrType {
+	case addrTypeEth:
+		buf = append(buf, p.SrcMac...)
+	case addrTypeUDP:
+		buf = append(buf, p.SrcIP...)
+		binary.BigEndian.PutUint16(portSlice, uint16(p.SrcPort))
+		buf = append(buf, portSlice...)
+	}
+
+	buf = append(buf, []byte{0x00, 0x01}...)
+	buf = append(buf, udapTypeUCP...)
+	buf = append(buf, []byte{0x01}...)
+	buf = append(buf, uapClassUCP...)
+	buf = append(buf, 0x00, byte(p.UcpMethod))
+
+	switch p.UcpMethod {
+	case ucpMethodGetData:
+		buf = append(buf, defaultCredentials...)
+		buf = append(buf, 0x00, byte(len(dataItems)))
+		for i, v := range dataItems {
+			offset := make([]byte, 2)
+			length := make([]byte, 2)
+			binary.BigEndian.PutUint16(offset, uint16(i))
+			binary.BigEndian.PutUint16(length, uint16(v.length))
+			buf = append(buf, offset...)
+			buf = append(buf, length...)
+		}
+		buf = append(buf, 0x00)
+
+	case ucpMethodSetData:
+		buf = append(buf, defaultCredentials...)
+		buf = append(buf, p.Data...)
+	}
+
+	return buf
+}
+
+type fields map[byte][]byte
+
+func (p packet) parseFields() (fields, error) {
 	// Data format is a repeated list of:
 	//  UCP Code (1 byte)
 	//  Length (1 byte)
 	//  Data []byte
 	//  If Length is zero, it is the end of the data
 
-	data := make(inboundData)
+	data := make(fields)
+	buf := p.Data
 	for {
 		if len(buf) < 2 {
 			break
@@ -170,7 +190,31 @@ func parseInboundData(buf []byte) (inboundData, error) {
 	return data, nil
 }
 
-func setDeviceData(sb *Sb, data inboundData) {
+func (p packet) parseData() (map[int][]byte, error) {
+	data := make(map[int][]byte)
+	buf := p.Data
+	if len(buf) < 2 {
+		return nil, errors.New("No data")
+	}
+	numValues := int(binary.BigEndian.Uint16(buf[0:2]))
+	buf = buf[2:]
+	for i := 0; i < numValues; i++ {
+		if len(buf) < 4 {
+			break
+		}
+		index := int(binary.BigEndian.Uint16(buf[0:2]))
+		length := int(binary.BigEndian.Uint16(buf[2:4]))
+		if len(buf) < 4+length {
+			return nil, errors.New("Data format error")
+		}
+		data[index] = buf[4 : 4+length]
+		buf = buf[4+length:]
+	}
+
+	return data, nil
+}
+
+func setDeviceData(sb *Sb, data fields) {
 	for i, v := range data {
 		switch i {
 		//case UCPCodeZero:
