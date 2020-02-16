@@ -20,39 +20,40 @@ type Sb struct {
 	Status      string
 	HardwareRev uint
 	FirmwareRev uint
-	Data        map[int][]byte
+	Data        deviceData
 }
 
+// Tagged as offset,data length (in bytes)
 type deviceData struct {
-	LanIPMode         bool   `gosqueeze:"4,1"`
-	LanNetworkAddress net.IP `gosqueeze:"5,4"`
-	LanSubnetMask     net.IP `gosqueeze:"9,4"`
-	// 13:  dataItem{"lanGateway", "IP address of default network gateway", 4},
-	// 17:  dataItem{"hostname", "Device hostname (is this set automatically?)", 33},
-	// 50:  dataItem{"bridging", "Use device as a wireless bridge (not sure about this)", 1},
-	// 52:  dataItem{"interface", "0 - wireless, 1 - wired (is set to 128 after factory reset)", 1},
-	// 59:  dataItem{"primaryDNS", "IP address of primary DNS server", 4},
-	// 67:  dataItem{"secondaryDNS", "IP address of secondary DNS server", 4},
-	// 71:  dataItem{"activeServerAddress", "IP address of currently active server (either Squeezenetwork or local server)", 4},
-	// 79:  dataItem{"squeezeCenterAddress", "IP address of local SqueezeCenter server", 4},
-	// 83:  dataItem{"squeezeCenterName", "Name of local SqueezeCenter server (???)", 33},
-	// 173: dataItem{"wirelessMode", "0 - Infrastructure, 1 - Ad Hoc", 1},
-	// 183: dataItem{"wirelessSSID", "Wireless network name", 33},
-	// 216: dataItem{"wirelessChannel", "Wireless channel (used by AdHoc mode???)", 1},
-	// 218: dataItem{"wirelessRegion", "4 - US, 6 - CA, 7 - AU, 13 - FR, 14 - EU, 16 - JP, 21 - TW, 23 - CH", 1},
-	// 220: dataItem{"wirelessKeylen", "Length of wireless key, (0 - 64-bit, 1 - 128-bit)", 1},
-	// 222: dataItem{"wirelessWEPKey0", "WEP key 0 - enter in hex", 13},
-	// 235: dataItem{"wirelessWEPKey1", "WEP key 0 - enter in hex", 13},
-	// 248: dataItem{"wirelessWEPKey2", "WEP key 0 - enter in hex", 13},
-	// 261: dataItem{"wirelessWEPKey3", "WEP key 0 - enter in hex", 13},
-	// 274: dataItem{"wirelessWEPOn", "0 - WEP Off, 1 - WEP On", 1},
-	// 275: dataItem{"wirelessWPACipher", "1 - TKIP, 2 - AES, 3 - TKIP & AES", 1},
-	// 276: dataItem{"wirelessWPAMode", "1 - WPA, 2 - WPA2", 1},
-	// 277: dataItem{"wirelessWPAOn", "0 - WPA Off, 1 - WPA On", 1},
-	// 278: dataItem{"wirelessSPAPSK", "WPA Public Shared Key", 64},
+	LanIPMode            bool   `gosqueeze:"4,1"` // Tagged as offset,data length (in bytes)
+	LanNetworkAddress    net.IP `gosqueeze:"5,4"`
+	LanSubnetMask        net.IP `gosqueeze:"9,4"`
+	LanGateway           net.IP `gosqueeze:"13,4"`
+	Hostname             string `gosqueeze:"17,33"`
+	Bridging             bool   `gosqueeze:"50,1"`
+	Interface            uint8  `gosqueeze:"52,1"`
+	PrimaryDNS           net.IP `gosqueeze:"59,4"`
+	SecondaryDNS         net.IP `gosqueeze:"67,4"`
+	ActiveServerAddress  net.IP `gosqueeze:"71,4"`
+	SqueezeCenterAddress net.IP `gosqueeze:"79,4"`
+	SqueezeCenterName    string `gosqueeze:"83,33"`
+	WirelessMode         uint8  `gosqueeze:"173,1"`
+	WirelessSSID         string `gosqueeze:"183,33"`
+	WirelessChannel      uint8  `gosqueeze:"216,1"`
+	WirelessRegion       uint8  `gosqueeze:"218,1"`
+	WirelessKeylen       uint8  `gosqueeze:"220,1"`
+	WirelessEWPKey0      []byte `gosqueeze:"222,13"`
+	WirelessEWPKey1      []byte `gosqueeze:"235,13"`
+	WirelessEWPKey2      []byte `gosqueeze:"248,13"`
+	WirelessEWPKey3      []byte `gosqueeze:"261,13"`
+	WirelessWEPOn        bool   `gosqueeze:"274,1"`
+	WirelessWPACipher    uint8  `gosqueeze:"275,1"`
+	WirelessWPAMode      uint8  `gosqueeze:"276,1"`
+	WirelessWPAOn        bool   `gosqueeze:"277,1"`
+	WirelessWPAPSK       string `gosqueeze:"278,64"`
 }
 
-// GetIP adds IP address information to the Sb device
+// GetIP retrieves IP address information from the SqueezeBox device
 func (s *Sb) GetIP(iface *net.Interface) error {
 	if s.MacAddr == nil {
 		return errors.New("Hardware address required")
@@ -81,7 +82,7 @@ func (s *Sb) GetIP(iface *net.Interface) error {
 				log.Println(err)
 				return
 			}
-			setDeviceData(s, data)
+			s.populateFields(data)
 		}
 	})
 	if err != nil {
@@ -93,7 +94,7 @@ func (s *Sb) GetIP(iface *net.Interface) error {
 	return nil
 }
 
-// GetData adds all information to the Sb device
+// GetData retrieves all data points from the SqueezeBox device
 func (s *Sb) GetData(iface *net.Interface) error {
 	if s.MacAddr == nil {
 		return errors.New("Hardware address required")
@@ -109,6 +110,7 @@ func (s *Sb) GetData(iface *net.Interface) error {
 		SrcPort:      0,
 		UcpMethod:    ucpMethodGetData,
 	}
+	p.setDataRetrieve(s.Data)
 	packet := p.assemble()
 
 	err := broadcastSingle(iface, udapPort, packet, 500*time.Millisecond, func(n int, addr *net.UDPAddr, buf []byte) {
@@ -117,7 +119,7 @@ func (s *Sb) GetData(iface *net.Interface) error {
 			return
 		}
 		if p.UcpMethod == ucpMethodGetData {
-			s.Data, err = p.parseData()
+			err = p.parseData(&s.Data)
 			if err != nil {
 				log.Println("Error getting data from device: " + err.Error())
 			}
@@ -129,8 +131,8 @@ func (s *Sb) GetData(iface *net.Interface) error {
 	return nil
 }
 
-// SetData sets to provided data on the device
-func (s *Sb) SetData(iface *net.Interface) error {
+// SaveData saves all current values to the SqueezeBox device
+func (s *Sb) SaveData(iface *net.Interface) error {
 	if s.MacAddr == nil {
 		return errors.New("Hardware address required")
 	}
@@ -166,4 +168,36 @@ func (s *Sb) SetData(iface *net.Interface) error {
 		return err
 	}
 	return nil
+}
+
+// populateFields sets the Sb root field values based on the
+// provided map.
+func (s *Sb) populateFields(f fields) {
+	for i, v := range f {
+		switch i {
+		//case UCPCodeZero:
+		//case UCPCodeOne:
+		case UCPCodeDeviceName:
+			s.Name = string(v)
+		case UCPCodeDeviceType:
+			s.Type = string(v)
+		// case UCPodeUseDHCP    :
+		case UCPCodeIPAddr:
+			s.IPAddr = v
+		case UCPCodeSubnetMask:
+			s.SubnetMask = v
+		case UCPCodeGatewayAddr:
+			s.GatewayAddr = v
+		// case UCPCodeEight       :
+		case UCPCodeFirmwareRev:
+			s.FirmwareRev = uint(binary.BigEndian.Uint16(v))
+		case UCPCodeHardwareRev:
+			s.HardwareRev = uint(binary.BigEndian.Uint32(v))
+		case UCPCodeDeviceID:
+			s.ID = uint(binary.BigEndian.Uint16(v))
+		case UCPCodeDeviceStatus:
+			s.Status = string(v)
+			// case UCPCodeUUID :
+		}
+	}
 }

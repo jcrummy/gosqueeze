@@ -3,7 +3,9 @@ package gosqueeze
 import (
 	"encoding/binary"
 	"errors"
+	"log"
 	"net"
+	"reflect"
 )
 
 type packet struct {
@@ -141,16 +143,17 @@ func (p packet) assemble() []byte {
 	switch p.UcpMethod {
 	case ucpMethodGetData:
 		buf = append(buf, defaultCredentials...)
-		buf = append(buf, 0x00, byte(len(dataItems)))
-		for i, v := range dataItems {
-			offset := make([]byte, 2)
-			length := make([]byte, 2)
-			binary.BigEndian.PutUint16(offset, uint16(i))
-			binary.BigEndian.PutUint16(length, uint16(v.length))
-			buf = append(buf, offset...)
-			buf = append(buf, length...)
-		}
-		buf = append(buf, 0x00)
+		// buf = append(buf, 0x00, byte(len(dataItems)))
+		// for i, v := range dataItems {
+		// 	offset := make([]byte, 2)
+		// 	length := make([]byte, 2)
+		// 	binary.BigEndian.PutUint16(offset, uint16(i))
+		// 	binary.BigEndian.PutUint16(length, uint16(v.length))
+		// 	buf = append(buf, offset...)
+		// 	buf = append(buf, length...)
+		// }
+		buf = append(buf, p.Data...)
+		//buf = append(buf, 0x00)
 
 	case ucpMethodSetData:
 		buf = append(buf, defaultCredentials...)
@@ -190,11 +193,16 @@ func (p packet) parseFields() (fields, error) {
 	return data, nil
 }
 
-func (p packet) parseData() (map[int][]byte, error) {
-	data := make(map[int][]byte)
+func (p packet) parseData(dataFields interface{}) error {
+	fieldOffsets := getOffsetMap(dataFields)
+	s := reflect.ValueOf(dataFields).Elem()
+	if s.Kind() != reflect.Struct {
+		return errors.New("Not a structure")
+	}
+
 	buf := p.Data
 	if len(buf) < 2 {
-		return nil, errors.New("No data")
+		return errors.New("No data")
 	}
 	numValues := int(binary.BigEndian.Uint16(buf[0:2]))
 	buf = buf[2:]
@@ -205,41 +213,62 @@ func (p packet) parseData() (map[int][]byte, error) {
 		index := int(binary.BigEndian.Uint16(buf[0:2]))
 		length := int(binary.BigEndian.Uint16(buf[2:4]))
 		if len(buf) < 4+length {
-			return nil, errors.New("Data format error")
+			return errors.New("Data format error")
 		}
-		data[index] = buf[4 : 4+length]
+		name, ok := fieldOffsets[index]
+		if !ok {
+			log.Printf("Field not found for offset %d.\n", index)
+			continue
+		}
+		f := s.FieldByName(name)
+		if !f.IsValid() {
+			log.Printf("Field not found for offset %d: %s.\n", index, name)
+			continue
+		}
+		if !f.CanSet() {
+			log.Printf("Can't set this data for %+v\n", name)
+			buf = buf[4+length:]
+			continue
+		}
+		data := buf[4 : 4+length]
+		log.Printf("%d Found index %d, length %d: %+v\n", i, index, length, data)
+
+		switch f.Type().String() {
+		case "bool":
+			f.SetBool(data[0] == 0x01)
+
+		case "string":
+			f.SetString(string(data))
+
+		case "uint8":
+			f.SetUint(uint64(data[0]))
+
+		case "net.IP":
+			f.SetBytes(data)
+		}
 		buf = buf[4+length:]
 	}
 
-	return data, nil
+	return nil
 }
 
-func setDeviceData(sb *Sb, data fields) {
-	for i, v := range data {
-		switch i {
-		//case UCPCodeZero:
-		//case UCPCodeOne:
-		case UCPCodeDeviceName:
-			sb.Name = string(v)
-		case UCPCodeDeviceType:
-			sb.Type = string(v)
-		// case UCPodeUseDHCP    :
-		case UCPCodeIPAddr:
-			sb.IPAddr = v
-		case UCPCodeSubnetMask:
-			sb.SubnetMask = v
-		case UCPCodeGatewayAddr:
-			sb.GatewayAddr = v
-		// case UCPCodeEight       :
-		case UCPCodeFirmwareRev:
-			sb.FirmwareRev = uint(binary.BigEndian.Uint16(v))
-		case UCPCodeHardwareRev:
-			sb.HardwareRev = uint(binary.BigEndian.Uint32(v))
-		case UCPCodeDeviceID:
-			sb.ID = uint(binary.BigEndian.Uint16(v))
-		case UCPCodeDeviceStatus:
-			sb.Status = string(v)
-			// case UCPCodeUUID :
+func (p *packet) setDataRetrieve(dataFields interface{}) error {
+	st := reflect.TypeOf(dataFields)
+	//p.Data = make([]byte, (st.NumField()*4)+2)
+	p.Data = make([]byte, 2)
+	binary.BigEndian.PutUint16(p.Data, uint16(st.NumField()))
+	for i := 0; i < st.NumField(); i++ {
+		field := st.Field(i)
+		offset, length, err := getTag(field)
+		if err != nil {
+			continue
 		}
+		offsetB := make([]byte, 2)
+		lengthB := make([]byte, 2)
+		binary.BigEndian.PutUint16(offsetB, uint16(offset))
+		binary.BigEndian.PutUint16(lengthB, uint16(length))
+		p.Data = append(p.Data, offsetB...)
+		p.Data = append(p.Data, lengthB...)
 	}
+	return nil
 }

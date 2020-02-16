@@ -35,9 +35,7 @@ func Discover(iface *net.Interface) ([]Sb, error) {
 				return
 			}
 			foundSB := Sb{MacAddr: p.SrcMac}
-			setDeviceData(&foundSB, data)
-			// foundSB.GetIP(iface)
-			// foundSB.GetData(iface)
+			foundSB.populateFields(data)
 			sb = append(sb, foundSB)
 		}
 	})
