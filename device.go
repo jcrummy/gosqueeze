@@ -3,6 +3,7 @@ package gosqueeze
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"time"
@@ -25,32 +26,32 @@ type Sb struct {
 
 // Tagged as offset,data length (in bytes)
 type deviceData struct {
-	LanIPMode            bool   `gosqueeze:"4,1"` // Tagged as offset,data length (in bytes)
-	LanNetworkAddress    net.IP `gosqueeze:"5,4"`
-	LanSubnetMask        net.IP `gosqueeze:"9,4"`
-	LanGateway           net.IP `gosqueeze:"13,4"`
-	Hostname             string `gosqueeze:"17,33"`
-	Bridging             bool   `gosqueeze:"50,1"`
-	Interface            uint8  `gosqueeze:"52,1"`
-	PrimaryDNS           net.IP `gosqueeze:"59,4"`
-	SecondaryDNS         net.IP `gosqueeze:"67,4"`
-	ActiveServerAddress  net.IP `gosqueeze:"71,4"`
-	SqueezeCenterAddress net.IP `gosqueeze:"79,4"`
-	SqueezeCenterName    string `gosqueeze:"83,33"`
-	WirelessMode         uint8  `gosqueeze:"173,1"`
-	WirelessSSID         string `gosqueeze:"183,33"`
-	WirelessChannel      uint8  `gosqueeze:"216,1"`
-	WirelessRegion       uint8  `gosqueeze:"218,1"`
-	WirelessKeylen       uint8  `gosqueeze:"220,1"`
-	WirelessEWPKey0      []byte `gosqueeze:"222,13"`
-	WirelessEWPKey1      []byte `gosqueeze:"235,13"`
-	WirelessEWPKey2      []byte `gosqueeze:"248,13"`
-	WirelessEWPKey3      []byte `gosqueeze:"261,13"`
-	WirelessWEPOn        bool   `gosqueeze:"274,1"`
-	WirelessWPACipher    uint8  `gosqueeze:"275,1"`
-	WirelessWPAMode      uint8  `gosqueeze:"276,1"`
-	WirelessWPAOn        bool   `gosqueeze:"277,1"`
-	WirelessWPAPSK       string `gosqueeze:"278,64"`
+	LanIPMode            bool   `gosqueeze:"4,1"`    // false = static IP, true = DHCP
+	LanNetworkAddress    net.IP `gosqueeze:"5,4"`    // static network address
+	LanSubnetMask        net.IP `gosqueeze:"9,4"`    // static subnet mask
+	LanGateway           net.IP `gosqueeze:"13,4"`   // static gateway address
+	Hostname             string `gosqueeze:"17,33"`  // device hostname
+	Bridging             bool   `gosqueeze:"50,1"`   // true = use device as wireless bridge
+	Interface            uint8  `gosqueeze:"52,1"`   // 0 = use Wireless, 1 = use Wired
+	PrimaryDNS           net.IP `gosqueeze:"59,4"`   // static primary DNS address
+	SecondaryDNS         net.IP `gosqueeze:"67,4"`   // static secondary DNS address
+	ActiveServerAddress  net.IP `gosqueeze:"71,4"`   // IP address of currently active server (read only)
+	SqueezeCenterAddress net.IP `gosqueeze:"79,4"`   // IP address of local Squeezecenter server
+	SqueezeCenterName    string `gosqueeze:"83,33"`  // Name of local Squeezecenter server (read only)
+	WirelessMode         uint8  `gosqueeze:"173,1"`  // 0 = infrastructure, 1 = Ad Hoc
+	WirelessSSID         string `gosqueeze:"183,33"` // SSID of WiFi access point to connect to
+	WirelessChannel      uint8  `gosqueeze:"216,1"`  // WiFi Channel, can normally leave at 0
+	WirelessRegion       uint8  `gosqueeze:"218,1"`  // 4 = US, 6 = CA, 7 = AU, 13 = FR, 14 = EU, 16 = JP, 21 = TW, 23 = CH
+	WirelessKeylen       uint8  `gosqueeze:"220,1"`  // Length of wireless key (0 = 64-bit, 1 = 128-bit)
+	WirelessEWPKey0      []byte `gosqueeze:"222,13"` // WEP key 0 - in Hex
+	WirelessEWPKey1      []byte `gosqueeze:"235,13"` // WEP key 1 - in Hex
+	WirelessEWPKey2      []byte `gosqueeze:"248,13"` // WEP key 2 - in Hex
+	WirelessEWPKey3      []byte `gosqueeze:"261,13"` // WEP key 3 - in Hex
+	WirelessWEPOn        bool   `gosqueeze:"274,1"`  // 0 = Wep Off, 1 = Wep On
+	WirelessWPACipher    uint8  `gosqueeze:"275,1"`  // 1 = TKIIP, 2 = AES, 3 = TKIP & AES
+	WirelessWPAMode      uint8  `gosqueeze:"276,1"`  // 1 = WPA, 2 = WPA2
+	WirelessWPAOn        bool   `gosqueeze:"277,1"`  // 0 = WPA Off, 1 = WPA On
+	WirelessWPAPSK       string `gosqueeze:"278,64"` // WPA Public Shared Key
 }
 
 // GetIP retrieves IP address information from the SqueezeBox device
@@ -146,8 +147,8 @@ func (s *Sb) SaveData(iface *net.Interface) error {
 		SrcIP:        ipZero,
 		SrcPort:      0,
 		UcpMethod:    ucpMethodSetData,
-		Data:         []byte{0x00, 0x01, 0x00, 0x05, 0x00, 0x04, 192, 168, 18, 25},
 	}
+	numDataFields := p.setDataForSave(s.Data)
 	packet := p.assemble()
 
 	err := broadcastSingle(iface, udapPort, packet, 500*time.Millisecond, func(n int, addr *net.UDPAddr, buf []byte) {
@@ -156,11 +157,11 @@ func (s *Sb) SaveData(iface *net.Interface) error {
 			return
 		}
 		if p.UcpMethod == ucpMethodSetData {
-			numberChanged := binary.BigEndian.Uint16(p.Data)
-			if numberChanged == 1 {
-				log.Println("Successfully set data.")
+			numberChanged := int(binary.BigEndian.Uint16(p.Data))
+			if numberChanged == numDataFields {
+				fmt.Println("Successfully set data.")
 			} else {
-				log.Println("Error setting data.")
+				fmt.Println("Error setting data. Not all fields were saved")
 			}
 		}
 	})

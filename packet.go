@@ -143,17 +143,7 @@ func (p packet) assemble() []byte {
 	switch p.UcpMethod {
 	case ucpMethodGetData:
 		buf = append(buf, defaultCredentials...)
-		// buf = append(buf, 0x00, byte(len(dataItems)))
-		// for i, v := range dataItems {
-		// 	offset := make([]byte, 2)
-		// 	length := make([]byte, 2)
-		// 	binary.BigEndian.PutUint16(offset, uint16(i))
-		// 	binary.BigEndian.PutUint16(length, uint16(v.length))
-		// 	buf = append(buf, offset...)
-		// 	buf = append(buf, length...)
-		// }
 		buf = append(buf, p.Data...)
-		//buf = append(buf, 0x00)
 
 	case ucpMethodSetData:
 		buf = append(buf, defaultCredentials...)
@@ -231,7 +221,6 @@ func (p packet) parseData(dataFields interface{}) error {
 			continue
 		}
 		data := buf[4 : 4+length]
-		log.Printf("%d Found index %d, length %d: %+v\n", i, index, length, data)
 
 		switch f.Type().String() {
 		case "bool":
@@ -271,4 +260,26 @@ func (p *packet) setDataRetrieve(dataFields interface{}) error {
 		p.Data = append(p.Data, lengthB...)
 	}
 	return nil
+}
+
+func (p *packet) setDataForSave(dataFields interface{}) int {
+	st := reflect.TypeOf(dataFields)
+	p.Data = make([]byte, 2)
+	binary.BigEndian.PutUint16(p.Data, uint16(st.NumField()))
+	for i := 0; i < st.NumField(); i++ {
+		field := st.Field(i)
+		offset, length, err := getTag(field)
+		if err != nil {
+			continue
+		}
+		offsetB := make([]byte, 2)
+		lengthB := make([]byte, 2)
+		binary.BigEndian.PutUint16(offsetB, uint16(offset))
+		binary.BigEndian.PutUint16(lengthB, uint16(length))
+		p.Data = append(p.Data, offsetB...)
+		p.Data = append(p.Data, lengthB...)
+		fieldValue := reflect.ValueOf(dataFields).FieldByName(field.Name)
+		p.Data = append(p.Data, pack(fieldValue.Interface(), length)...)
+	}
+	return st.NumField()
 }
