@@ -1,3 +1,7 @@
+// Copyright 2020 John Crummy. All rights reserved.
+// Use of this source code is governed by an MIT-style license
+// that can be found in the LICENSE file.
+
 package gosqueeze
 
 import (
@@ -9,6 +13,10 @@ import (
 	"time"
 )
 
+// broadcastReceive sends a provided message out as a UDP broadcast on the provided port and
+// waits for a reply on the same port. Handler function handler is called to process each reply.
+// This means that the handler function will be called as many times are there
+// are replied. No error is returned if no reply is received.
 func broadcastReceive(iface *net.Interface, sendPort int, sendMsg []byte, timeout time.Duration,
 	handler func(n int, addr *net.UDPAddr, buf []byte)) error {
 	broadcastAddr, err := net.ResolveUDPAddr("udp", "255.255.255.255:"+strconv.Itoa(sendPort))
@@ -66,6 +74,10 @@ func broadcastReceive(iface *net.Interface, sendPort int, sendMsg []byte, timeou
 	return nil
 }
 
+// broadcastSingle works the same as broadcastReceive, but it is expected that a specific
+// device is addressed, and so it expects only a single reply. As soon as a reply is received,
+// the handler function is called and any subsequent reply is ignored. If no reply is received
+// an error is returned.
 func broadcastSingle(iface *net.Interface, sendPort int, sendMsg []byte, timeout time.Duration,
 	handler func(n int, addr *net.UDPAddr, buf []byte)) error {
 	broadcastAddr, err := net.ResolveUDPAddr("udp", "255.255.255.255:"+strconv.Itoa(sendPort))
@@ -117,6 +129,7 @@ func broadcastSingle(iface *net.Interface, sendPort int, sendMsg []byte, timeout
 	return nil
 }
 
+// getIfaceAddr returns the IPv4 address associated with an interface.
 func getIfaceAddr(iface *net.Interface) (string, error) {
 	laddrs, err := iface.Addrs()
 	if err != nil {

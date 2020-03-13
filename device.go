@@ -1,3 +1,7 @@
+// Copyright 2020 John Crummy. All rights reserved.
+// Use of this source code is governed by an MIT-style license
+// that can be found in the LICENSE file.
+
 package gosqueeze
 
 import (
@@ -21,11 +25,12 @@ type Sb struct {
 	Status      string
 	HardwareRev uint
 	FirmwareRev uint
-	Data        deviceData
+	Data        DeviceData
 }
 
+// DeviceData is the configuration data of the device
 // Tagged as offset,data length (in bytes)
-type deviceData struct {
+type DeviceData struct {
 	LanIPMode            bool   `gosqueeze:"4,1"`    // false = static IP, true = DHCP
 	LanNetworkAddress    net.IP `gosqueeze:"5,4"`    // static network address
 	LanSubnetMask        net.IP `gosqueeze:"9,4"`    // static subnet mask
@@ -132,7 +137,7 @@ func (s *Sb) GetData(iface *net.Interface) error {
 	return nil
 }
 
-// SaveData saves all current values to the SqueezeBox device
+// SaveData saves all current values to the SqueezeBox device permantently
 func (s *Sb) SaveData(iface *net.Interface) error {
 	if s.MacAddr == nil {
 		return errors.New("Hardware address required")

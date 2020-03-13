@@ -1,3 +1,7 @@
+// Copyright 2020 John Crummy. All rights reserved.
+// Use of this source code is governed by an MIT-style license
+// that can be found in the LICENSE file.
+
 package gosqueeze
 
 import (
@@ -8,6 +12,8 @@ import (
 	"reflect"
 )
 
+// packet represents a SqueezeBox configuration packet. The same
+// format is used for requests and replies.
 type packet struct {
 	DstBroadcast bool
 	DstAddrType  int
@@ -27,6 +33,7 @@ type packet struct {
 	Data         []byte
 }
 
+// parsePacket returns a packet struct from the raw byte slice.
 func parsePacket(buf []byte) (*packet, error) {
 	if len(buf) < 27 {
 		return nil, errors.New("Packet length too short")
@@ -96,6 +103,7 @@ func parsePacket(buf []byte) (*packet, error) {
 	return &p, nil
 }
 
+// assemble provides a raw byte slice ready to send over the network.
 func (p packet) assemble() []byte {
 	var buf []byte
 	portSlice := make([]byte, 2)
@@ -153,8 +161,11 @@ func (p packet) assemble() []byte {
 	return buf
 }
 
+// fields is a map of configuration data points in their raw format.
 type fields map[byte][]byte
 
+// parseFields returns a field map of raw field data from the .Data
+// byte slice of the packet.
 func (p packet) parseFields() (fields, error) {
 	// Data format is a repeated list of:
 	//  UCP Code (1 byte)
@@ -183,6 +194,9 @@ func (p packet) parseFields() (fields, error) {
 	return data, nil
 }
 
+// parseData populates a struct based on the .Data byte slice
+// of the packet. Field data is entered based on the tagged offset
+// value of the structure.
 func (p packet) parseData(dataFields interface{}) error {
 	fieldOffsets := getOffsetMap(dataFields)
 	s := reflect.ValueOf(dataFields).Elem()
