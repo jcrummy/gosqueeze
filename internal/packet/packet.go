@@ -2,7 +2,7 @@
 // Use of this source code is governed by an MIT-style license
 // that can be found in the LICENSE file.
 
-package gosqueeze
+package packet
 
 import (
 	"encoding/binary"
@@ -10,11 +10,14 @@ import (
 	"log"
 	"net"
 	"reflect"
+
+	"github.com/jcrummy/gosqueeze/internal/constants"
+	"github.com/jcrummy/gosqueeze/internal/util"
 )
 
-// packet represents a SqueezeBox configuration packet. The same
+// Packet represents a SqueezeBox configuration packet. The same
 // format is used for requests and replies.
-type packet struct {
+type Packet struct {
 	DstBroadcast bool
 	DstAddrType  int
 	DstMac       net.HardwareAddr
@@ -33,13 +36,13 @@ type packet struct {
 	Data         []byte
 }
 
-// parsePacket returns a packet struct from the raw byte slice.
-func parsePacket(buf []byte) (*packet, error) {
+// Parse returns a packet struct from the raw byte slice.
+func Parse(buf []byte) (*Packet, error) {
 	if len(buf) < 27 {
 		return nil, errors.New("Packet length too short")
 	}
 
-	var p packet
+	var p Packet
 	i := 0
 
 	p.DstBroadcast = buf[i] == 1
@@ -49,10 +52,10 @@ func parsePacket(buf []byte) (*packet, error) {
 
 	// Next six bytes encode either a mac address or an ip address and port
 	switch p.DstAddrType {
-	case addrTypeEth:
+	case constants.AddrTypeEth:
 		p.DstMac = buf[i : i+6]
 
-	case addrTypeUDP:
+	case constants.AddrTypeUDP:
 		p.DstIP = buf[i : i+4]
 		port := binary.BigEndian.Uint16(buf[i+4 : i+6])
 		p.DstPort = uint(port)
@@ -69,10 +72,10 @@ func parsePacket(buf []byte) (*packet, error) {
 
 	// Next six bytes encode either a mac address or an ip address and port
 	switch p.SrcAddrType {
-	case addrTypeEth:
+	case constants.AddrTypeEth:
 		p.SrcMac = buf[i : i+6]
 
-	case addrTypeUDP:
+	case constants.AddrTypeUDP:
 		p.SrcIP = buf[i : i+4]
 		port := binary.BigEndian.Uint16(buf[i+4 : i+6])
 		p.SrcPort = uint(port)
@@ -103,8 +106,8 @@ func parsePacket(buf []byte) (*packet, error) {
 	return &p, nil
 }
 
-// assemble provides a raw byte slice ready to send over the network.
-func (p packet) assemble() []byte {
+// Assemble provides a raw byte slice ready to send over the network.
+func (p Packet) Assemble() []byte {
 	var buf []byte
 	portSlice := make([]byte, 2)
 
@@ -117,9 +120,9 @@ func (p packet) assemble() []byte {
 	}())
 	buf = append(buf, byte(p.DstAddrType))
 	switch p.DstAddrType {
-	case addrTypeEth:
+	case constants.AddrTypeEth:
 		buf = append(buf, p.DstMac...)
-	case addrTypeUDP:
+	case constants.AddrTypeUDP:
 		buf = append(buf, p.DstIP...)
 		binary.BigEndian.PutUint16(portSlice, uint16(p.DstPort))
 		buf = append(buf, portSlice...)
@@ -134,46 +137,46 @@ func (p packet) assemble() []byte {
 	}())
 	buf = append(buf, byte(p.SrcAddrType))
 	switch p.SrcAddrType {
-	case addrTypeEth:
+	case constants.AddrTypeEth:
 		buf = append(buf, p.SrcMac...)
-	case addrTypeUDP:
+	case constants.AddrTypeUDP:
 		buf = append(buf, p.SrcIP...)
 		binary.BigEndian.PutUint16(portSlice, uint16(p.SrcPort))
 		buf = append(buf, portSlice...)
 	}
 
 	buf = append(buf, []byte{0x00, 0x01}...)
-	buf = append(buf, udapTypeUCP...)
+	buf = append(buf, constants.UdapTypeUCP...)
 	buf = append(buf, []byte{0x01}...)
-	buf = append(buf, uapClassUCP...)
+	buf = append(buf, constants.UapClassUCP...)
 	buf = append(buf, 0x00, byte(p.UcpMethod))
 
 	switch p.UcpMethod {
-	case ucpMethodGetData:
-		buf = append(buf, defaultCredentials...)
+	case constants.UCPMethodGetData:
+		buf = append(buf, constants.DefaultCredentials...)
 		buf = append(buf, p.Data...)
 
-	case ucpMethodSetData:
-		buf = append(buf, defaultCredentials...)
+	case constants.UCPMethodSetData:
+		buf = append(buf, constants.DefaultCredentials...)
 		buf = append(buf, p.Data...)
 	}
 
 	return buf
 }
 
-// fields is a map of configuration data points in their raw format.
-type fields map[byte][]byte
+// Fields is a map of configuration data points in their raw format.
+type Fields map[byte][]byte
 
-// parseFields returns a field map of raw field data from the .Data
+// ParseFields returns a field map of raw field data from the .Data
 // byte slice of the packet.
-func (p packet) parseFields() (fields, error) {
+func (p Packet) ParseFields() (Fields, error) {
 	// Data format is a repeated list of:
 	//  UCP Code (1 byte)
 	//  Length (1 byte)
 	//  Data []byte
 	//  If Length is zero, it is the end of the data
 
-	data := make(fields)
+	data := make(Fields)
 	buf := p.Data
 	for {
 		if len(buf) < 2 {
@@ -194,11 +197,11 @@ func (p packet) parseFields() (fields, error) {
 	return data, nil
 }
 
-// parseData populates a struct based on the .Data byte slice
+// ParseData populates a struct based on the .Data byte slice
 // of the packet. Field data is entered based on the tagged offset
 // value of the structure.
-func (p packet) parseData(dataFields interface{}) error {
-	fieldOffsets := getOffsetMap(dataFields)
+func (p Packet) ParseData(dataFields interface{}) error {
+	fieldOffsets := util.GetOffsetMap(dataFields)
 	s := reflect.ValueOf(dataFields).Elem()
 	if s.Kind() != reflect.Struct {
 		return errors.New("Not a structure")
@@ -255,14 +258,14 @@ func (p packet) parseData(dataFields interface{}) error {
 	return nil
 }
 
-func (p *packet) setDataRetrieve(dataFields interface{}) error {
+// SetDataRetrieve applies the set of configuration values to be retrieved
+func (p *Packet) SetDataRetrieve(dataFields interface{}) error {
 	st := reflect.TypeOf(dataFields)
-	//p.Data = make([]byte, (st.NumField()*4)+2)
 	p.Data = make([]byte, 2)
 	binary.BigEndian.PutUint16(p.Data, uint16(st.NumField()))
 	for i := 0; i < st.NumField(); i++ {
 		field := st.Field(i)
-		offset, length, err := getTag(field)
+		offset, length, err := util.GetTag(field)
 		if err != nil {
 			continue
 		}
@@ -276,13 +279,14 @@ func (p *packet) setDataRetrieve(dataFields interface{}) error {
 	return nil
 }
 
-func (p *packet) setDataForSave(dataFields interface{}) int {
+// SetDataForSave applies configuration data to save to the device
+func (p *Packet) SetDataForSave(dataFields interface{}) int {
 	st := reflect.TypeOf(dataFields)
 	p.Data = make([]byte, 2)
 	binary.BigEndian.PutUint16(p.Data, uint16(st.NumField()))
 	for i := 0; i < st.NumField(); i++ {
 		field := st.Field(i)
-		offset, length, err := getTag(field)
+		offset, length, err := util.GetTag(field)
 		if err != nil {
 			continue
 		}
@@ -293,7 +297,7 @@ func (p *packet) setDataForSave(dataFields interface{}) int {
 		p.Data = append(p.Data, offsetB...)
 		p.Data = append(p.Data, lengthB...)
 		fieldValue := reflect.ValueOf(dataFields).FieldByName(field.Name)
-		p.Data = append(p.Data, pack(fieldValue.Interface(), length)...)
+		p.Data = append(p.Data, util.Pack(fieldValue.Interface(), length)...)
 	}
 	return st.NumField()
 }

@@ -2,7 +2,7 @@
 // Use of this source code is governed by an MIT-style license
 // that can be found in the LICENSE file.
 
-package gosqueeze
+package util
 
 import (
 	"errors"
@@ -12,7 +12,8 @@ import (
 	"strings"
 )
 
-func getTag(field reflect.StructField) (int, int, error) {
+// GetTag returns gosqueeze-tagged fields from a struct field
+func GetTag(field reflect.StructField) (int, int, error) {
 	itemTag := field.Tag.Get("gosqueeze")
 	if itemTag == "" {
 		return 0, 0, errors.New("No tag attached to struct field")
@@ -32,6 +33,7 @@ func getTag(field reflect.StructField) (int, int, error) {
 	return offset, length, nil
 }
 
+// getFieldOffsets returns gosqueeze-tagged struct field information
 func getFieldOffsets(field reflect.StructField) (int, string, error) {
 	itemTag := field.Tag.Get("gosqueeze")
 	if itemTag == "" {
@@ -48,7 +50,8 @@ func getFieldOffsets(field reflect.StructField) (int, string, error) {
 	return offset, field.Name, nil
 }
 
-func getOffsetMap(dataFields interface{}) map[int]string {
+// GetOffsetMap returns gosqueeze-tagged struct data
+func GetOffsetMap(dataFields interface{}) map[int]string {
 	ret := make(map[int]string)
 	st := reflect.TypeOf(dataFields)
 	for i := 0; i < st.Elem().NumField(); i++ {
@@ -61,7 +64,8 @@ func getOffsetMap(dataFields interface{}) map[int]string {
 	return ret
 }
 
-func pack(v interface{}, length int) []byte {
+// Pack transforms an interface to a byte slice of a specific length
+func Pack(v interface{}, length int) []byte {
 	s := reflect.TypeOf(v)
 	slice := make([]byte, length)
 	switch s.String() {

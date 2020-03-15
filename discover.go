@@ -8,32 +8,35 @@ import (
 	"log"
 	"net"
 	"time"
+
+	"github.com/jcrummy/gosqueeze/internal/constants"
+	"github.com/jcrummy/gosqueeze/internal/packet"
 )
 
 // Discover returns a list of squeezebox devices found on the network
 func Discover(iface *net.Interface) ([]Sb, error) {
 	// Put together packet to send
-	p := packet{
+	p := packet.Packet{
 		DstBroadcast: true,
-		DstAddrType:  addrTypeEth,
-		DstMac:       macZero,
+		DstAddrType:  constants.AddrTypeEth,
+		DstMac:       constants.MacZero,
 		SrcBroadcast: false,
-		SrcAddrType:  addrTypeUDP,
-		SrcIP:        ipZero,
+		SrcAddrType:  constants.AddrTypeUDP,
+		SrcIP:        constants.IPZero,
 		SrcPort:      0,
-		UcpMethod:    ucpMethodAdvDiscover,
+		UcpMethod:    constants.UCPMethodAdvDiscover,
 	}
-	packet := p.assemble()
+	packetBytes := p.Assemble()
 
 	var sb []Sb
 
-	err := broadcastReceive(iface, 17784, packet, 3*time.Second, func(n int, addr *net.UDPAddr, buf []byte) {
-		p, err := parsePacket(buf[:n])
+	err := broadcastReceive(iface, 17784, packetBytes, 3*time.Second, func(n int, addr *net.UDPAddr, buf []byte) {
+		p, err := packet.Parse(buf[:n])
 		if err != nil {
 			return
 		}
-		if p.UcpMethod == ucpMethodAdvDiscover {
-			data, err := p.parseFields()
+		if p.UcpMethod == constants.UCPMethodAdvDiscover {
+			data, err := p.ParseFields()
 			if err != nil {
 				log.Println(err)
 				return

@@ -11,6 +11,9 @@ import (
 	"log"
 	"net"
 	"time"
+
+	"github.com/jcrummy/gosqueeze/internal/constants"
+	"github.com/jcrummy/gosqueeze/internal/packet"
 )
 
 // Sb represents a squeezebox receiver device
@@ -65,25 +68,25 @@ func (s *Sb) GetIP(iface *net.Interface) error {
 		return errors.New("Hardware address required")
 	}
 
-	p := packet{
+	p := packet.Packet{
 		DstBroadcast: false,
-		DstAddrType:  addrTypeEth,
+		DstAddrType:  constants.AddrTypeEth,
 		DstMac:       s.MacAddr,
 		SrcBroadcast: false,
-		SrcAddrType:  addrTypeUDP,
-		SrcIP:        ipZero,
+		SrcAddrType:  constants.AddrTypeUDP,
+		SrcIP:        constants.IPZero,
 		SrcPort:      0,
-		UcpMethod:    ucpMethodGetIP,
+		UcpMethod:    constants.UCPMethodGetIP,
 	}
-	packet := p.assemble()
+	packetBytes := p.Assemble()
 
-	err := broadcastSingle(iface, 17784, packet, 500*time.Millisecond, func(n int, addr *net.UDPAddr, buf []byte) {
-		p, err := parsePacket(buf[:n])
+	err := broadcastSingle(iface, 17784, packetBytes, 500*time.Millisecond, func(n int, addr *net.UDPAddr, buf []byte) {
+		p, err := packet.Parse(buf[:n])
 		if err != nil {
 			return
 		}
-		if p.UcpMethod == ucpMethodGetIP {
-			data, err := p.parseFields()
+		if p.UcpMethod == constants.UCPMethodGetIP {
+			data, err := p.ParseFields()
 			if err != nil {
 				log.Println(err)
 				return
@@ -106,26 +109,26 @@ func (s *Sb) GetData(iface *net.Interface) error {
 		return errors.New("Hardware address required")
 	}
 
-	p := packet{
+	p := packet.Packet{
 		DstBroadcast: false,
-		DstAddrType:  addrTypeEth,
+		DstAddrType:  constants.AddrTypeEth,
 		DstMac:       s.MacAddr,
 		SrcBroadcast: false,
-		SrcAddrType:  addrTypeUDP,
-		SrcIP:        ipZero,
+		SrcAddrType:  constants.AddrTypeUDP,
+		SrcIP:        constants.IPZero,
 		SrcPort:      0,
-		UcpMethod:    ucpMethodGetData,
+		UcpMethod:    constants.UCPMethodGetData,
 	}
-	p.setDataRetrieve(s.Data)
-	packet := p.assemble()
+	p.SetDataRetrieve(s.Data)
+	packetBytes := p.Assemble()
 
-	err := broadcastSingle(iface, udapPort, packet, 500*time.Millisecond, func(n int, addr *net.UDPAddr, buf []byte) {
-		p, err := parsePacket(buf[:n])
+	err := broadcastSingle(iface, constants.UdapPort, packetBytes, 500*time.Millisecond, func(n int, addr *net.UDPAddr, buf []byte) {
+		p, err := packet.Parse(buf[:n])
 		if err != nil {
 			return
 		}
-		if p.UcpMethod == ucpMethodGetData {
-			err = p.parseData(&s.Data)
+		if p.UcpMethod == constants.UCPMethodGetData {
+			err = p.ParseData(&s.Data)
 			if err != nil {
 				log.Println("Error getting data from device: " + err.Error())
 			}
@@ -143,25 +146,25 @@ func (s *Sb) SaveData(iface *net.Interface) error {
 		return errors.New("Hardware address required")
 	}
 
-	p := packet{
+	p := packet.Packet{
 		DstBroadcast: false,
-		DstAddrType:  addrTypeEth,
+		DstAddrType:  constants.AddrTypeEth,
 		DstMac:       s.MacAddr,
 		SrcBroadcast: false,
-		SrcAddrType:  addrTypeUDP,
-		SrcIP:        ipZero,
+		SrcAddrType:  constants.AddrTypeUDP,
+		SrcIP:        constants.IPZero,
 		SrcPort:      0,
-		UcpMethod:    ucpMethodSetData,
+		UcpMethod:    constants.UCPMethodSetData,
 	}
-	numDataFields := p.setDataForSave(s.Data)
-	packet := p.assemble()
+	numDataFields := p.SetDataForSave(s.Data)
+	packetBytes := p.Assemble()
 
-	err := broadcastSingle(iface, udapPort, packet, 500*time.Millisecond, func(n int, addr *net.UDPAddr, buf []byte) {
-		p, err := parsePacket(buf[:n])
+	err := broadcastSingle(iface, constants.UdapPort, packetBytes, 500*time.Millisecond, func(n int, addr *net.UDPAddr, buf []byte) {
+		p, err := packet.Parse(buf[:n])
 		if err != nil {
 			return
 		}
-		if p.UcpMethod == ucpMethodSetData {
+		if p.UcpMethod == constants.UCPMethodSetData {
 			numberChanged := int(binary.BigEndian.Uint16(p.Data))
 			if numberChanged == numDataFields {
 				fmt.Println("Successfully set data.")
@@ -178,30 +181,30 @@ func (s *Sb) SaveData(iface *net.Interface) error {
 
 // populateFields sets the Sb root field values based on the
 // provided map.
-func (s *Sb) populateFields(f fields) {
+func (s *Sb) populateFields(f packet.Fields) {
 	for i, v := range f {
 		switch i {
 		//case UCPCodeZero:
 		//case UCPCodeOne:
-		case UCPCodeDeviceName:
+		case constants.UCPCodeDeviceName:
 			s.Name = string(v)
-		case UCPCodeDeviceType:
+		case constants.UCPCodeDeviceType:
 			s.Type = string(v)
 		// case UCPodeUseDHCP    :
-		case UCPCodeIPAddr:
+		case constants.UCPCodeIPAddr:
 			s.IPAddr = v
-		case UCPCodeSubnetMask:
+		case constants.UCPCodeSubnetMask:
 			s.SubnetMask = v
-		case UCPCodeGatewayAddr:
+		case constants.UCPCodeGatewayAddr:
 			s.GatewayAddr = v
 		// case UCPCodeEight       :
-		case UCPCodeFirmwareRev:
+		case constants.UCPCodeFirmwareRev:
 			s.FirmwareRev = uint(binary.BigEndian.Uint16(v))
-		case UCPCodeHardwareRev:
+		case constants.UCPCodeHardwareRev:
 			s.HardwareRev = uint(binary.BigEndian.Uint32(v))
-		case UCPCodeDeviceID:
+		case constants.UCPCodeDeviceID:
 			s.ID = uint(binary.BigEndian.Uint16(v))
-		case UCPCodeDeviceStatus:
+		case constants.UCPCodeDeviceStatus:
 			s.Status = string(v)
 			// case UCPCodeUUID :
 		}
