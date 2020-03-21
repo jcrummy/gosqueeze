@@ -9,6 +9,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/jcrummy/gosqueeze/internal/broadcast"
 	"github.com/jcrummy/gosqueeze/internal/constants"
 	"github.com/jcrummy/gosqueeze/internal/packet"
 )
@@ -30,7 +31,7 @@ func Discover(iface *net.Interface) ([]Sb, error) {
 
 	var sb []Sb
 
-	err := broadcastReceive(iface, 17784, packetBytes, 3*time.Second, func(n int, addr *net.UDPAddr, buf []byte) {
+	err := broadcast.BroadcastReceive(iface, 17784, packetBytes, 3*time.Second, func(n int, addr *net.UDPAddr, buf []byte) {
 		p, err := packet.Parse(buf[:n])
 		if err != nil {
 			return

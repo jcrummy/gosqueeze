@@ -12,6 +12,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/jcrummy/gosqueeze/internal/broadcast"
 	"github.com/jcrummy/gosqueeze/internal/constants"
 	"github.com/jcrummy/gosqueeze/internal/packet"
 )
@@ -80,7 +81,7 @@ func (s *Sb) GetIP(iface *net.Interface) error {
 	}
 	packetBytes := p.Assemble()
 
-	err := broadcastSingle(iface, 17784, packetBytes, 500*time.Millisecond, func(n int, addr *net.UDPAddr, buf []byte) {
+	err := broadcast.BroadcastSingle(iface, 17784, packetBytes, 500*time.Millisecond, func(n int, addr *net.UDPAddr, buf []byte) {
 		p, err := packet.Parse(buf[:n])
 		if err != nil {
 			return
@@ -122,7 +123,7 @@ func (s *Sb) GetData(iface *net.Interface) error {
 	p.SetDataRetrieve(s.Data)
 	packetBytes := p.Assemble()
 
-	err := broadcastSingle(iface, constants.UdapPort, packetBytes, 500*time.Millisecond, func(n int, addr *net.UDPAddr, buf []byte) {
+	err := broadcast.BroadcastSingle(iface, constants.UdapPort, packetBytes, 500*time.Millisecond, func(n int, addr *net.UDPAddr, buf []byte) {
 		p, err := packet.Parse(buf[:n])
 		if err != nil {
 			return
@@ -159,7 +160,7 @@ func (s *Sb) SaveData(iface *net.Interface) error {
 	numDataFields := p.SetDataForSave(s.Data)
 	packetBytes := p.Assemble()
 
-	err := broadcastSingle(iface, constants.UdapPort, packetBytes, 500*time.Millisecond, func(n int, addr *net.UDPAddr, buf []byte) {
+	err := broadcast.BroadcastSingle(iface, constants.UdapPort, packetBytes, 500*time.Millisecond, func(n int, addr *net.UDPAddr, buf []byte) {
 		p, err := packet.Parse(buf[:n])
 		if err != nil {
 			return
