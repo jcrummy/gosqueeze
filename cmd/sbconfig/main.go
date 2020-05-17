@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/c-bata/go-prompt"
-	"github.com/jcrummy/sbconfig/sb"
+	"github.com/jcrummy/gosqueeze/cmd/sbconfig/sb"
 )
 
 func main() {

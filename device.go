@@ -52,10 +52,10 @@ type DeviceData struct {
 	WirelessChannel      uint8  `gosqueeze:"216,1"`  // WiFi Channel, can normally leave at 0
 	WirelessRegion       uint8  `gosqueeze:"218,1"`  // 4 = US, 6 = CA, 7 = AU, 13 = FR, 14 = EU, 16 = JP, 21 = TW, 23 = CH
 	WirelessKeylen       uint8  `gosqueeze:"220,1"`  // Length of wireless key (0 = 64-bit, 1 = 128-bit)
-	WirelessEWPKey0      []byte `gosqueeze:"222,13"` // WEP key 0 - in Hex
-	WirelessEWPKey1      []byte `gosqueeze:"235,13"` // WEP key 1 - in Hex
-	WirelessEWPKey2      []byte `gosqueeze:"248,13"` // WEP key 2 - in Hex
-	WirelessEWPKey3      []byte `gosqueeze:"261,13"` // WEP key 3 - in Hex
+	WirelessWEPKey0      []byte `gosqueeze:"222,13"` // WEP key 0 - in Hex
+	WirelessWEPKey1      []byte `gosqueeze:"235,13"` // WEP key 1 - in Hex
+	WirelessWEPKey2      []byte `gosqueeze:"248,13"` // WEP key 2 - in Hex
+	WirelessWEPKey3      []byte `gosqueeze:"261,13"` // WEP key 3 - in Hex
 	WirelessWEPOn        bool   `gosqueeze:"274,1"`  // 0 = Wep Off, 1 = Wep On
 	WirelessWPACipher    uint8  `gosqueeze:"275,1"`  // 1 = TKIIP, 2 = AES, 3 = TKIP & AES
 	WirelessWPAMode      uint8  `gosqueeze:"276,1"`  // 1 = WPA, 2 = WPA2

@@ -53,10 +53,10 @@ func configureCompleter(d prompt.Document) []prompt.Suggest {
 		{Text: "WirelessChannel", Description: "WiFi channel, 0 for automatic"},
 		{Text: "WirelessRegion", Description: "4 US, 6 CA, 7 AU, 13 FR, 14 EU, 16 JP, 21 TW, 23 CH"},
 		{Text: "WirelessKeylen", Description: "Length of wireless key (0 = 64-bit, 1 = 128-bit)"},
-		{Text: "WirelessEWPKey0", Description: "WEP key 0 - in hex"},
-		{Text: "WirelessEWPKey1", Description: "WEP key 1 - in hex"},
-		{Text: "WirelessEWPKey2", Description: "WEP key 2 - in hex"},
-		{Text: "WirelessEWPKey3", Description: "WEP key 3 - in hex"},
+		{Text: "WirelessWEPKey0", Description: "WEP key 0 - in hex"},
+		{Text: "WirelessWEPKey1", Description: "WEP key 1 - in hex"},
+		{Text: "WirelessWEPKey2", Description: "WEP key 2 - in hex"},
+		{Text: "WirelessWEPKey3", Description: "WEP key 3 - in hex"},
 		{Text: "WirelessWEPOn", Description: "0 = Wep Off, 1 = Wep On"},
 		{Text: "WirelessWPACipher", Description: "1 = TKIP, 2 = AES, 3 = TKIP & AES"},
 		{Text: "WirelessWPAMode", Description: "1 = WPA, 2 = WPA2"},
@@ -91,10 +91,10 @@ func (c *configurator) showValues() {
 	fmt.Printf("WirelessChannel: %+v\n", c.device.Data.WirelessChannel)
 	fmt.Printf("WirelessRegion: %+v\n", c.device.Data.WirelessRegion)
 	fmt.Printf("WirelessKeylen: %+v\n", c.device.Data.WirelessKeylen)
-	fmt.Printf("WirelessEWPKey0: %+v\n", c.device.Data.WirelessEWPKey0)
-	fmt.Printf("WirelessEWPKey1: %+v\n", c.device.Data.WirelessEWPKey1)
-	fmt.Printf("WirelessEWPKey2: %+v\n", c.device.Data.WirelessEWPKey2)
-	fmt.Printf("WirelessEWPKey3: %+v\n", c.device.Data.WirelessEWPKey3)
+	fmt.Printf("WirelessWEPKey0: %+v\n", c.device.Data.WirelessWEPKey0)
+	fmt.Printf("WirelessWEPKey1: %+v\n", c.device.Data.WirelessWEPKey1)
+	fmt.Printf("WirelessWEPKey2: %+v\n", c.device.Data.WirelessWEPKey2)
+	fmt.Printf("WirelessWEPKey3: %+v\n", c.device.Data.WirelessWEPKey3)
 	fmt.Printf("WirelessWEPOn: %+v\n", c.device.Data.WirelessWEPOn)
 	fmt.Printf("WirelessWPACipher: %+v\n", c.device.Data.WirelessWPACipher)
 	fmt.Printf("WirelessWPAMode: %+v\n", c.device.Data.WirelessWPAMode)
@@ -119,7 +119,7 @@ func (c *configurator) setValue(s string) {
 		setIPAddress(vals[2], &c.device.Data.LanSubnetMask)
 
 	case "langateway":
-		setIPAddress(vals[2], &c.device.Data.LanSubnetMask)
+		setIPAddress(vals[2], &c.device.Data.LanGateway)
 
 	case "hostname":
 		c.device.Data.Hostname = vals[2]
@@ -154,17 +154,17 @@ func (c *configurator) setValue(s string) {
 	case "wirelesskeylen":
 		setUint8(vals[2], &c.device.Data.WirelessKeylen, maxUint8(1))
 
-	case "wirelessewpkey0":
-		c.device.Data.WirelessEWPKey0 = []byte(vals[2])
+	case "wirelesswepkey0":
+		c.device.Data.WirelessWEPKey0 = []byte(vals[2])
 
-	case "wirelessewpkey1":
-		c.device.Data.WirelessEWPKey1 = []byte(vals[2])
+	case "wirelesswepkey1":
+		c.device.Data.WirelessWEPKey1 = []byte(vals[2])
 
-	case "wirelessewpkey2":
-		c.device.Data.WirelessEWPKey2 = []byte(vals[2])
+	case "wirelesswepkey2":
+		c.device.Data.WirelessWEPKey2 = []byte(vals[2])
 
-	case "wirelessewpkey3":
-		c.device.Data.WirelessEWPKey3 = []byte(vals[2])
+	case "wirelesswepkey3":
+		c.device.Data.WirelessWEPKey3 = []byte(vals[2])
 
 	case "wirelesswepon":
 		setBool(vals[2], &c.device.Data.WirelessWEPOn)
@@ -180,6 +180,9 @@ func (c *configurator) setValue(s string) {
 
 	case "wirelesswpapsk":
 		c.device.Data.WirelessWPAPSK = strings.TrimPrefix(s, vals[0]+" "+vals[1]+" ")
+
+	default:
+		fmt.Println("Invalid data point specified")
 	}
 }
 
