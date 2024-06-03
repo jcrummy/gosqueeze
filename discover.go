@@ -50,12 +50,14 @@ func Discover(iface *net.Interface) (map[string]Sb, error) {
 				return
 			}
 			fmt.Println("----------------------------------------------------------------")
+			fmt.Printf("Memory address of p.SrcMac: %p\n\n", &p.SrcMac)
+			fmt.Println("----------------------------------------------------------------")
 			fmt.Printf("%+v\n\n", data)
 			foundSB := Sb{MacAddr: p.SrcMac}
 			// fmt.Println("----------------------------------------------------------------")
 			// fmt.Printf("%+v\n\n", foundSB)
 			foundSB.populateFields(data)
-			// fmt.Println("----------------------------------------------------------------")
+			fmt.Println("----------------------------------------------------------------")
 			fmt.Printf("Memory address of foundSB: %p\n%+v\n\n", &foundSB, foundSB)
 			sb[foundSB.MacAddr.String()] = foundSB
 			fmt.Printf("%+v\n", sb)
