@@ -57,9 +57,9 @@ func BroadcastReceive(iface *net.Interface, sendPort int, sendMsg []byte, timeou
 	}
 	defer rconn.Close()
 
-	buf := make([]byte, 1024)
 	rconn.SetDeadline(time.Now().Add(timeout))
 	for {
+		buf := make([]byte, 1024)
 		n, addr, err := rconn.ReadFromUDP(buf)
 		if err != nil {
 			if err.(net.Error).Timeout() {
