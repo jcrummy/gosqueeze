@@ -1,6 +1,6 @@
 module github.com/jcrummy/gosqueeze
 
-go 1.12
+go 1.22
 
 require (
 	github.com/c-bata/go-prompt v0.2.3

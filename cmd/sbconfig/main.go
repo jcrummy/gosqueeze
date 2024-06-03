@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/c-bata/go-prompt"
-	"github.com/jcrummy/gosqueeze/cmd/sbconfig/sb"
 )
 
 func main() {
@@ -64,8 +63,8 @@ func executor(s string) {
 			fmt.Println("No such device. Use 'configure 0' to configure the first device.")
 			return
 		}
-		fmt.Printf("Configuring device #%d (%+v).\n", deviceIndex, sbs[deviceIndex].MacAddr)
-		sb.Configure(&sbs[deviceIndex], selectedInterface())
+		//fmt.Printf("Configuring device #%d (%+v).\n", deviceIndex, sbs[deviceIndex].MacAddr)
+		//sb.Configure(&sbs[deviceIndex], selectedInterface())
 	}
 	return
 }
