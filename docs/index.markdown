@@ -8,7 +8,7 @@ layout: default
 Usage
 =====
 
-1. Download the aproporiate executable using the links above.
+1. Download the aproporiate executable using the links above. Go to releases on the GitHub project page for more os/architecture targets.
 
 2. Set the Squeezebox into configuration mode.
 
